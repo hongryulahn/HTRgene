@@ -14,12 +14,15 @@ git clone https://github.com/hongryulahn/HeteroTimeDEG
 ```
 
 ## Dependancy
-To run them, you also need the latest version of dependancy libraries below.
+To run them, you also need the latest version of dependancy libraries below.n
 
-- **python numpy, scipy** 
-- **python [statsmodels](https://www.statsmodels.org/stable/install.html)**
-- **R [skmeans](https://cran.r-project.org/web/packages/skmeans/index.html)**
-- **R [limma](https://bioconductor.org/packages/release/bioc/html/limma.html)**
+### python 
+- **numpy, scipy** 
+- **[statsmodels](https://www.statsmodels.org/stable/install.html)**
+
+###R
+- **[skmeans](https://cran.r-project.org/web/packages/skmeans/index.html)**
+- **[limma](https://bioconductor.org/packages/release/bioc/html/limma.html)**
 
 
 #### 5 - Data Management
