@@ -24,18 +24,19 @@ To run them, you also need the latest version of the dependency library below.
 Multiple time-series gene expression data has to be stored into a single tab-dilimenated matrix file (genes * samples).
 
 ### Sample labels
-The first row of the file includes labels of samples in the format of i_j_k.
-- i : ith time-series sample
-- j : jth time-point in the sample i
-- k : kth replicate of the jth time-point in the sample i
+The first line of the file includes labels of columns in the format of i_j_k.
+- i : time-series sample
+- j : time-point
+- k : replicate
+
+Thus, the label of a column that belongs to time-series sample 0, time-point 0, replicate 2 will be 0_0_2.
 
 ### Gene IDs
 The first column of the file includes gene IDs.
 
+see the example file
+
 ## Run
 ```
-python heteroTimeDEG.py 
-
-#### 5 - Data Management
-- **Build an image dataset** ([notebook](https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/5_DataManagement/build_an_image_dataset.ipynb)) ([code](https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/5_DataManagement/build_an_image_dataset.py)). Build your own images dataset with TensorFlow data queues, from image folders or a dataset file.
-- **TensorFlow Dataset API** ([notebook](https://github.com/aymericdamien/TensorFlow-Examples/blob/master/notebooks/5_DataManagement/tensorflow_dataset_api.ipynb)) ([code](https://github.com/aymericdamien/TensorFlow-Examples/blob/master/examples/5_DataManagement/tensorflow_dataset_api.py)). Introducing TensorFlow Dataset API for optimizing the input data pipeline.
+python heteroTimeDEG.py example/exp.cold.28sample.txt out.cold
+```
