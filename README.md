@@ -1,4 +1,4 @@
-# HeteroTimeDEG
+# HTRgene
 This program was designed for integrating analysis of multiple heterogeneous time-series gene expression data to identify response genes
 
 
@@ -7,7 +7,7 @@ This program was designed for integrating analysis of multiple heterogeneous tim
 
 To download all the examples, simply clone this repository:
 ```
-git clone https://github.com/hongryulahn/HeteroTimeDEG
+git clone https://github.com/hongryulahn/HTRgene
 ```
 
 
@@ -44,5 +44,6 @@ see the example file
 
 ## Run
 ```
-python heteroTimeDEG.py example/exp.cold.28sample.txt out.cold
+python HTRgene.py example/exp.cold.28sample.txt out.cold
+python HTRgene.py example/exp.heat.24sample.txt out.heat
 ```
