@@ -38,7 +38,15 @@ Thus, the label of a column that belongs to time-series sample 0, time-point 0, 
 ### Gene IDs
 The first column of the file includes gene IDs.
 
-see the example file
+### Example
+Below is an example of two time series samples, of two time points, with two replicates.
+```
+ID	0_0_0	0_0_1	0_1_0	0_1_1	0_2_0	0_2_1	1_0_0	1_0_1	1_1_0	1_1_1	1_2_0	1_2_1
+AT1G01010	5.35146	5.215	4.54896	4.69377	5.27511	4.53756	6.94247	6.4214	6.74755	6.9412	6.94886	7.06849
+AT1G01030	5.00595	5.17827	4.96035	5.21129	5.38342	5.08703	4.19308	4.16198	4.16957	4.32094	4.25848	4.4901
+AT1G01040	7.54401	7.41923	7.19867	7.16885	7.23367	7.43978	7.55364	7.54586	7.55467	7.37159	7.44254	7.15361
+AT1G01050	9.52625	9.71189	9.62682	9.74527	9.85147	9.70006	9.76466	10.0955	10.1058	9.92132	10.0833	9.97274
+```
 
 
 
