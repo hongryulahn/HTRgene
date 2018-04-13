@@ -1,18 +1,33 @@
-#!/usr/bin/env python
+"""
+HTRgene
+
+Created by Hongryul Ahn on 2018-04-07.
+Copyright (c) 2018 Hongryul Ahn. All rights reserved.
+
+This program is free software: you can redistribute it and/or modify
+it under the terms of the GNU General Public License as published by
+the Free Software Foundation, either version 3 of the License, or
+(at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+GNU General Public License for more details.
+
+You should have received a copy of the GNU General Public License
+along with this program.  If not, see <http://www.gnu.org/licenses/>.
+
+"""
+
 import sys
 import argparse
 import numpy as np
 import os
 import itertools
-import time
 import random
-from multiprocessing import Pool, Lock
 import scipy.stats
-import scipy.spatial.distance
 import subprocess
 import statsmodels.sandbox.stats.multicomp
-
-from matplotlib import pyplot as plt
 
 def ranking(x, axis=0, method='average', reverse=False):
 	"""Ranking numpy array (1D or 2D dimension).
@@ -37,7 +52,6 @@ def ranking(x, axis=0, method='average', reverse=False):
 	Raises:
 		pass
 	"""
-	
 	b=np.array(x)
 	if reverse:
 		b=-1.0*b
@@ -58,6 +72,18 @@ def ranking(x, axis=0, method='average', reverse=False):
 		sys.exit(1)
 
 def readData(expfile):
+	"""Read data from expfile.
+
+	Return a list of samples, a list of genes, and gene expression array (numpy.array).
+
+	Args:
+		expfile: gene expression matrix file
+	Returns:
+		a list of samples, a list of genes, and gene expression array
+	Raises:
+		pass
+	"""
+
 	IF=open(expfile,'r')
 	line=IF.readline()
 	lst_sample=line.strip().split('\t')[1:]
@@ -73,10 +99,26 @@ def readData(expfile):
 	return lst_sample, lst_gene, arr_exp
 
 def label2struct(lst_sample):
+	"""Bulid a sample-timepoint-replicate structure from sample labels.
+
+	Args:
+		lst_sample: a list of labels of samples whose format is SID_TID_RID.
+			For instance, 1_0_1 is a possible label where SID(sample ID), TID(timepoint), RID(replicate ID) = 1, 0, 1.
+			SID, TID and RID must be integers.
+			The first index of SID, TID, RID must start by 0.
+			The TID = 0 (the zero timepoint) means non-stressed sample.
+	Returns:
+		lst_str2idx: a list of mapping sample, time-point, and replicate to column index.
+			lst_str2idx[s] returns the list of time-points of sample s.
+			lst_str2idx[s][t] returns the list of replicates of time-points t of sample s.
+			lst_str2idx[s][t][r] returns the column index of replicate r of time-point t of sample s.
+	Raises:
+		pass
+	"""
 	dic_str2i_val={}
 	for i, sample in enumerate(lst_sample):
 		s_val, t_val, r_val = sample.split('_')
-		s_val, t_val, r_val = int(s_val.strip('s')), int(t_val.strip('t')), int(r_val.strip('r'))
+		t_val = int(t_val)
 		if s_val not in dic_str2i_val:
 			dic_str2i_val[s_val]={}
 		if t_val not in dic_str2i_val[s_val]:
@@ -97,36 +139,18 @@ def label2struct(lst_sample):
 				lst_str2idx[s][t][r]=dic_str2i_val[s_val][t_val][r_val]
 	return lst_str2idx
 
-'''
-def arrToSarr(arr_exp, lst_sample):
-	dic_etr2column={}
-	for i, sample in enumerate(lst_sample):
-		e, t, r = sample.split('_')
-		e, t, r = int(e.strip('e')), int(t.strip('t')), int(r.strip('r'))
-		if e not in dic_etr2column:
-			dic_etr2column[e]={}
-		if t not in dic_etr2column[e]:
-			dic_etr2column[e][t]={}
-		if r not in dic_etr2column[e][t]:
-			dic_etr2column[e][t][r]=i
-
-	print arr_exp.shape
-	sarr_exp_gstr=[None for g in range(arr_exp.shape[0])]
-	for g in range(arr_exp.shape[0]):
-		sarr_exp_gstr[g]=[None for e in range(len(dic_etr2column))]
-		for e, e_val in enumerate(sorted(dic_etr2column.keys(),key=lambda x:float(x))):
-			sarr_exp_gstr[g][e]=[None for t in range(len(dic_etr2column[e_val]))]
-			for t, t_val in enumerate(sorted(dic_etr2column[e_val].keys(),key=lambda x:float(x))):
-				sarr_exp_gstr[g][e][t]=[None for r in range(len(dic_etr2column[e_val][t_val]))]
-				for r, r_val in enumerate(sorted(dic_etr2column[e_val][t_val].keys(),key=lambda x:float(x))):
-					#print g, e, t, r, dic_etr2column[e_val][t_val][r_val]
-					#print arr_exp[g,:]
-					sarr_exp_gstr[g][e][t][r]=arr_exp[g,dic_etr2column[e_val][t_val][r_val]]
-		print g
-	return sarr_exp_gstr
-'''
-	
 def normailze(arr_exp, lst_str2idx, platform='microarray'):
+	"""Bulid a sample-timepoint-replicate structure from sample labels.
+
+	Args:
+		expfile: gene expression matrix file
+	Returns:
+
+		a list of samples, a list of genes, and gene expression array
+	Raises:
+		pass
+	"""
+
 	arr_basement = np.zeros((arr_exp.shape[0],len(lst_str2idx)))
 	for s in range(len(lst_str2idx)):
 		lst_idx_t0=lst_str2idx[s][0]
@@ -146,21 +170,46 @@ def normailze(arr_exp, lst_str2idx, platform='microarray'):
 					y[:,i] = np.log(arr_exp[:,i]+1) - arr_basement[:,s]
 	return y
 
-def profileDEG(arr_exp, lst_str2idx, lst_gene=None, valueType='absolute_binary',passOut=None,outdir=None):
+def profileDEG(arr_exp, lst_str2idx, lst_gene=None, valueType='absolute_binary',passBy=False,outdir=None):
+	"""profiling DEGs between each time point to zero time point (t0) for each sample.
+
+	Args:
+		arr_exp: 2D gene expression matrix file (genes * samples)
+		lst_str2idx: a list of mapping sample, time-point, and replicate to column index.
+			lst_str2idx[s] returns the list of time-points of sample s.
+			lst_str2idx[s][t] returns the list of replicates of time-points t of sample s.
+			lst_str2idx[s][t][r] returns the column index of replicate r of time-point t of sample s.
+		lst_gene: a list of gene ids.
+		valueType: types of DEG values
+			'absolute_binary': 1(DEG, i.e. adj.p < 0.05) or 0(non-DEG)
+			'signed_binary': 1(UP-DEG), -1(DOWN-DEG), or 0(non-DEG)
+			'absolute_zstats': abs(zstats)   zstats is z where p = cdf(z) of the normal distribution cosidering UP and DOWN.
+			'signed_zstats': zstats
+			'absolute_FC': abs(log(fold change))
+			'signed_FC': log(fold change)
+		passBy: if passBy is True and the output file 'info.DEGresult' exists, then it does not run DEG detection.
+		outdir: output directory where the intermediate result files are stored.
+	Returns:
+		arr_DEG: 2D numpy.array (genes * samples)
+		lst_st2idx: a list of mapping sample and time-point to column index.
+			lst_str2idx[s] returns the list of time-points of sample s .
+			lst_str2idx[s][t] returns the column index of time-point t of sample s.
+			Note that, DEG is a result of binary comparison of tx to t0, and t0 is excluded in arr_DEG.
+			For instance, arr_DEG[g, lst_str2idx[0][0]] returns DEG value of gene g in sample s=0 of t=1
+	Raises:
+		pass
+	"""
+
 	if outdir == None:
-		tmp1='tmp1'
-		tmp2='tmp2'
-		tmp3='tmp3'
-		tmp4='tmp4'
-	else:
-		tmp1=outdir+'/tmp1'
-		tmp2=outdir+'/tmp2'
-		tmp3=outdir+'/tmp3'
-		tmp4=outdir+'/tmp4'
-	if passOut == None:
-		OF1=open(tmp1,'w')
-		OF2=open(tmp2,'w')
-		OF3=open(tmp3,'w')
+		outdir='.'
+	tmpfile1=outdir+'/step1.expNormalized'
+	tmpfile2=outdir+'/step1.sample2group'
+	tmpfile3=outdir+'/step1.compareGroup'
+	tmpfile4=outdir+'/step1.DEGresult'
+	if passBy == False:
+		OF1=open(tmpfile1,'w')
+		OF2=open(tmpfile2,'w')
+		OF3=open(tmpfile3,'w')
 		lst_label=[]
 		for s in range(len(lst_str2idx)):
 			for t in range(len(lst_str2idx[s])):
@@ -183,8 +232,8 @@ def profileDEG(arr_exp, lst_str2idx, lst_gene=None, valueType='absolute_binary',
 		OF1.close()
 		OF2.close()
 		OF3.close()
-		subprocess.call(["Rscript", "DEGlimma.R", tmp1, tmp2, tmp3, valueType, tmp4])
-	IF = open(tmp4,'r')
+		subprocess.call(["Rscript", "DEGlimma.R", tmpfile1, tmpfile2, tmpfile3, valueType, tmpfile4])
+	IF = open(tmpfile4,'r')
 	lst_st2idx=[]
 	lst_label=IF.readline().strip().split('\t')[1:]
 	for i, label in enumerate(lst_label):
@@ -201,23 +250,43 @@ def profileDEG(arr_exp, lst_str2idx, lst_gene=None, valueType='absolute_binary',
 		s=line.strip().split('\t')
 		name, DEGs = s[0], map(float,s[1:])
 		lst_DEGs.append(DEGs)
-	y=np.array(lst_DEGs)
+	arr_DEG=np.array(lst_DEGs)
 	IF.close()
-	return y, lst_st2idx
+	return arr_DEG, lst_st2idx
 
-def mergeDEGprofile(arr_DEG, lst_st2idx):
-	y=np.zeros((arr_DEG.shape[0], len(lst_st2idx)))
-	for s in range(len(lst_st2idx)):
-		lst_i = lst_st2idx[s]
-		y[:,s] = np.max(arr_DEG[:,lst_i],axis=1)
-	return y
+def testDEGprofile(arr_DEG, method='sampling', nTrial = 200000, seed=None):
+	"""profiling DEGs between each time point to zero time point (t0) for each sample.
 
-def testDEGprofile(arr_DEG, method='sampling', nTrial = 1000000, seed=None):
+	Args:
+		arr_exp: 2D gene expression matrix file (genes * samples)
+		lst_str2idx: a list of mapping sample, time-point, and replicate to column index.
+			lst_str2idx[s] returns the list of time-points of sample s.
+			lst_str2idx[s][t] returns the list of replicates of time-points t of sample s.
+			lst_str2idx[s][t][r] returns the column index of replicate r of time-point t of sample s.
+		lst_gene: a list of gene ids.
+		valueType: types of DEG values
+			'absolute_binary': 1(DEG, i.e. adj.p < 0.05) or 0(non-DEG)
+			'signed_binary': 1(UP-DEG), -1(DOWN-DEG), or 0(non-DEG)
+			'absolute_zstats': abs(zstats)   zstats is z where p = cdf(z) of the normal distribution cosidering UP and DOWN.
+			'signed_zstats': zstats
+			'absolute_FC': abs(log(fold change))
+			'signed_FC': log(fold change)
+		passBy: if passBy is True and the output file 'info.DEGresult' exists, then it does not run DEG detection.
+		outdir: output directory where the intermediate result files are stored.
+	Returns:
+		arr_DEG: 2D numpy.array (genes * samples)
+		lst_st2idx: a list of mapping sample and time-point to column index.
+			lst_str2idx[s] returns the list of time-points of sample s .
+			lst_str2idx[s][t] returns the column index of time-point t of sample s.
+			Note that, DEG is a result of binary comparison of tx to t0, and t0 is excluded in arr_DEG.
+			For instance, arr_DEG[g, lst_str2idx[0][0]] returns DEG value of gene g in sample s=0 of t=1
+	Raises:
+		pass
+	"""
 	if method == 'sampling':
 		if seed != None:
 			np.random.seed(seed)
 		nGene = arr_DEG.shape[0]
-		#nTrial = nGene * 100
 		lst_randomVal = []
 		x = arr_DEG.copy()
 		while True:
@@ -229,7 +298,6 @@ def testDEGprofile(arr_DEG, method='sampling', nTrial = 1000000, seed=None):
 				if len(lst_randomVal) >= nTrial:
 					break
 				lst_randomVal.append(np.sum(x[row,:]))
-			#lst_randomVal.append(np.sum([x[row,col] for col, row in enumerate(np.random.choice(nGene, arr_DEG.shape[1]))]))
 		lst_pval = np.ones(nGene)
 		lst_gene_val = sorted([(g, np.sum(arr_DEG[g,:])) for g in range(nGene)],key=lambda x:x[1], reverse=True)
 		lst_randomVal.sort(reverse=True)
@@ -238,7 +306,7 @@ def testDEGprofile(arr_DEG, method='sampling', nTrial = 1000000, seed=None):
 		while True:
 			if i >= nGene:
 				break
-			if lst_randomVal[j] == lst_randomVal[j+1]:
+			if j < nTrial and lst_randomVal[j] == lst_randomVal[j+1]:
 				j+=1
 				continue
 			gene, val = lst_gene_val[i]
@@ -250,157 +318,46 @@ def testDEGprofile(arr_DEG, method='sampling', nTrial = 1000000, seed=None):
 				i+=1
 	return lst_pval
 
-def testCluster(distMatrix, dic_cluster2idxs, method='sampling', nTrial = 10000):
-	if method == 'sampling':
-		nGene = distMatrix.shape[0]
-		lst_cluster = sorted(dic_cluster2idxs.keys(),key=lambda x: len(dic_cluster2idxs[x]))
-		max_size = len(dic_cluster2idxs[lst_cluster[-1]])
+def multipleTestCorrection(lst_pval, method='bonferroni'):
+	reject,lst_adjPval,alphacSidak,alphacBonf = statsmodels.sandbox.stats.multicomp.multipletests(lst_pval,method=method)
+	return lst_adjPval
 
-def selectSignificant(lst_pval, method='pcut', multipleTestCorrection='bonferroni', alpha=0.05, topN=None):
-	lst_idx=[]
-	if method == 'top':
-		lst_ranking = ranking(lst_pval)
-		for i in range(len(lst_pval)):
-			if lst_ranking[i] <= topN:
-				lst_idx.append(i)
-	if method == 'pcut':
-		if multipleTestCorrection != None:
-			reject,lst_pval,alphacSidak,alphacBonf = statsmodels.sandbox.stats.multicomp.multipletests(lst_pval,method=multipleTestCorrection,alpha=alpha)
-		for i in range(len(lst_pval)):
-			if lst_pval[i] <= alpha:
-				lst_idx.append(i)
-	return lst_idx
-
-def getLowerBoundDistance(distMatrix, alpha=0.05):
-	sortedDistMatrix=np.sort(distMatrix, axis=1)
-	nGene = sortedDistMatrix.shape[0]
-	lst_lowerBoundDistance=[]
-	lst_lowerBoundDistance.append(None)
-	lst_lowerBoundDistance.append(None)
-	for size in range(2,nGene):
-		lst_dist = np.sort(sortedDistMatrix[:,size-1])
-		lst_lowerBoundDistance.append(lst_dist[int(nGene*alpha)])
-	return lst_lowerBoundDistance
-
-def skmeansWrapper(arr_exp, k, passOut=None, seed=None, outdir=None):
+def skmeansWrapper(arr_exp, k, lst_gene=None, lst_sample=None, writeInputfile=True, passBy=False, seed=None, outdir=None):
 	if outdir == None:
-		tmp5='tmp5'
-		tmp6='tmp6'
-	else:
-		tmp5=outdir+'/tmp5'
-		tmp6=outdir+'/tmp6'
-	if passOut == None:
-		OF5=open(tmp5,'w')
-		lst_label=[str(i) for i in range(arr_exp.shape[1])]
-		OF5.write('ID'+'\t'+'\t'.join(lst_label)+'\n')
-		for g in range(arr_exp.shape[0]):
-			name = 'g%09d'%(g)
-			OF5.write(name+'\t'+'\t'.join(map(str,arr_exp[g,:]))+'\n')
-		OF5.close()
+		outdir = '.'
+	if lst_gene == None:
+		lst_gene = ['g%09d'%(g) for g in range(arr_exp.shape[0])]
+	if lst_sample == None:
+		lst_sample = [str(i) for i in range(arr_exp.shape[1])]
+	tmpfile5=outdir+'/step2.expNormalized.consensusDEG'
+	tmpfile6=outdir+'/step2.clusterResult.K'+str(k)
+	if passBy == False:
+		if writeInputfile == True:
+			OF5=open(tmpfile5,'w')
+			OF5.write('ID\t'+'\t'.join(map(str,lst_sample))+'\n')
+			for g in range(arr_exp.shape[0]):
+				OF5.write(lst_gene[g]+'\t'+'\t'.join(map(str,arr_exp[g,:]))+'\n')
+			OF5.close()
 		if seed == None:
-			subprocess.call(["Rscript", "run_skmeans.R", tmp5, str(k), 'None', tmp6])
+			subprocess.call(["Rscript", "run_skmeans.R", tmpfile5, str(k), 'None', tmpfile6])
 		else:
-			subprocess.call(["Rscript", "run_skmeans.R", tmp5, str(k), str(seed), tmp6])
-	IF = open(tmp6,'r')
+			subprocess.call(["Rscript", "run_skmeans.R", tmpfile5, str(k), str(seed), tmpfile6])
+	IF = open(tmpfile6,'r')
 	dic_cluster2idxs={}
+	dic_gene2idx={}
+	for g in range(arr_exp.shape[0]):
+		dic_gene2idx[lst_gene[g]]=g
 	for line in IF:
 		s=line.strip().split('\t')
-		name, cluster = s[0], int(s[1])
-		idx=int(name.replace('g',''))
+		gene, cluster = s[0], int(s[1])
+		idx=dic_gene2idx[gene]
 		if cluster not in dic_cluster2idxs:
 			dic_cluster2idxs[cluster]=set()
 		dic_cluster2idxs[cluster].add(idx)
 	IF.close()
 	return dic_cluster2idxs
 
-def testCluster(dic_cluster2idxs, distMatrix, method='sampling', nTrial=1000, seed=None):
-	if seed != None:
-		np.random.seed(seed)
-	lst_cid2cluster=[]
-	dic_cluster2cid={}
-	lst_cid_position=[]
-	lst_idxs=[]
-	for cid, (cluster, idxs) in enumerate(sorted(dic_cluster2idxs.items())):
-		lst_cid2cluster.append(cluster)
-		dic_cluster2cid[cluster]=cid
-		lst_cid_position.append(len(lst_idxs))
-		lst_idxs += sorted(idxs)
-	lst_cid_position.append(len(lst_idxs))
-	original_idxs=np.array(lst_idxs)
-	lst_meanDist=[]
-	lst_dist=[]
-	for cid in range(nCluster):
-		tmpIdxs = original_idxs[lst_cid_position[cid]:lst_cid_position[cid+1]]
-		if len(tmpIdxs) <= 1:
-			lst_meanDist.append(0.0)
-			lst_dist.append(0.0)
-			continue
-		tmpDistMatrix = distMatrix[tmpIdxs,:][:,tmpIdxs]
-		center = sorted([(i,np.sum(tmpDistMatrix[i,:])) for i in range(len(tmpIdxs))],key=lambda x:x[1])[0][0]
-		lst_meanDist.append(np.mean(tmpDistMatrix[center,:]))
-		lst_dist+=list(tmpDistMatrix[center,:])
-	nCluster=len(dic_cluster2idxs)
-	nIdx=len(lst_idxs)
-	lst_randomMeanDist=[[] for i in range(nCluster)]
-	lst_randomDist=[[] for i in range(nCluster)]
-	for t in nTrial:
-		random_idxs=np.random.permutation(nIdx)
-		for cid in range(nCluster):
-			tmpIdxs = random_idxs[lst_cid_position[cid]:lst_cid_position[cid+1]]
-			if len(tmpIdxs) <= 1:
-				lst_meanDist[cid].append(0.0)
-				lst_dist[cid].append(0.0)
-				continue
-			tmpDistMatrix = distMatrix[tmpIdxs,:][:,tmpIdxs]
-			center = sorted([(i,np.sum(tmpDistMatrix[i,:])) for i in range(len(tmpIdxs))],key=lambda x:x[1])[0][0]
-			lst_randomMeanDist[cid].append(np.mean(tmpDistMatrix[center,:]))
-			lst_randomDist[cid]+=list(tmpDistMatrix[center,:])
-	#for cid in range(nCluster):
-	return lst_clusterPval, lst_idxPval 
-
 def getResponseTimeVector(arr_exp, lst_str2idx):
-	lst_posBreakpoint=[]
-	lst_posAllTval=[]
-	lst_negBreakpoint=[]
-	lst_negAllTval=[]
-	for s in range(len(lst_str2idx)):
-		lst_timepointTval=[]
-		for tidx in range(1,len(lst_str2idx[s])):
-			beforeIdx=[]
-			afterIdx=[]
-			for tidx2 in range(len(lst_str2idx[s])):
-				for r, idx in enumerate(lst_str2idx[s][tidx2]):
-					if tidx2 < tidx:
-						beforeIdx.append(idx)
-					else:
-						afterIdx.append(idx)
-			if len(beforeIdx) <= 1 or len(afterIdx) <= 1:
-				#tval, pval = 0.0, 1.0
-				mean_tval = 0.0
-			else:
-				beforeExp=arr_exp[:,beforeIdx]
-				afterExp=arr_exp[:,afterIdx]
-				lst_tval=[]
-				for gidx in range(arr_exp.shape[0]):
-					tval, pval = scipy.stats.ttest_ind(afterExp[gidx,:],beforeExp[gidx,:])
-					lst_tval.append(tval)
-				mean_tval = np.mean(lst_tval)
-			lst_timepointTval.append([tidx,mean_tval])
-		breakpoint, tval_breakpoint = sorted(lst_timepointTval,key=lambda x:x[1],reverse=True)[0]
-		lst_posBreakpoint.append(breakpoint)
-		lst_posAllTval.append(tval_breakpoint)
-		breakpoint, tval_breakpoint = sorted(lst_timepointTval,key=lambda x:x[1])[0]
-		lst_negBreakpoint.append(breakpoint)
-		lst_negAllTval.append(tval_breakpoint)
-	if abs(np.mean(lst_posAllTval)) > abs(np.mean(lst_negAllTval)):
-		lst_breakpoint=lst_posBreakpoint
-		allTval=np.mean(lst_posAllTval)
-	else:
-		lst_breakpoint=lst_negBreakpoint
-		allTval=np.mean(lst_negAllTval)
-	return lst_breakpoint, allTval
-
-def getResponseTimeVector2(arr_exp, lst_str2idx):
 	lst_posBreakpoint=[]
 	lst_posTval=[]
 	lst_negBreakpoint=[]
@@ -417,7 +374,6 @@ def getResponseTimeVector2(arr_exp, lst_str2idx):
 					else:
 						afterIdx.append(idx)
 			if len(beforeIdx) <= 1 or len(afterIdx) <= 1:
-				#tval, pval = 0.0, 1.0
 				mean_tval = 0.0
 			else:
 				beforeExp=arr_exp[:,beforeIdx].flatten()
@@ -448,7 +404,6 @@ def getResponseTimeVector2(arr_exp, lst_str2idx):
 				else:
 					afterIdx.append(idx)
 		if len(beforeIdx) <= 1 or len(afterIdx) <= 1:
-			#tval, pval = 0.0, 1.0
 			mean_tval = 0.0
 		else:
 			beforeExp=arr_exp[:,beforeIdx]
@@ -472,7 +427,6 @@ def getResponseTimeVector2(arr_exp, lst_str2idx):
 					else:
 						afterIdx.append(idx)
 			if len(beforeIdx) <= 1 or len(afterIdx) <= 1:
-				#tval, pval = 0.0, 1.0
 				mean_tval = 0.0
 			else:
 				beforeExp=arr_exp[:,beforeIdx]
@@ -508,7 +462,6 @@ def getResponseTimeVector2(arr_exp, lst_str2idx):
 					else:
 						afterIdx.append(idx)
 			if len(beforeIdx) <= 1 or len(afterIdx) <= 1:
-				#tval, pval = 0.0, 1.0
 				mean_tval = 0.0
 			else:
 				beforeExp=arr_exp[:,beforeIdx]
@@ -611,125 +564,104 @@ def orderingCluster(dic_cluster2rt_tstats):
 			dic_cluster2order[cluster]=i
 	return dic_cluster2order
 
-
-def run(lst_sample, lst_gene, arr_exp, DEGpcut, cosinePcut, minSizePcut, step2_k='auto', platform='microarray', seed=None, outdir=None):
-	dic_gene2phase={}
+def run(lst_sample, lst_gene, arr_exp, DEGpcut, minClusterSize=3, step2_k='auto', platform='microarray', seed=None, outdir=None):
 	########################
 	#        STEP 1        #
 	########################
 	# Convert array to sarr
 	lst_str2idx = label2struct(lst_sample)
-	#sarr_exp_gstr = arrToSarr(arr_exp, lst_sample)
 	'''
-		A sarr_exp (structured array of expression) has four dimensions.
-		The first dimension elements, sarr_exp[.], are genes.
-		The second dimension elements, sarr_exp[.][.], are samples.
-		The third dimension elements, sarr_exp[.][.][.], are time-points.
-		The fourth dimension elements, sarr_exp[.][.][.][.], are replicates.
-		Thus, the sarr_exp[g][s][t][r] value is the expression level of gene g in sample s, timepoint t, replicate r.
+		A lst_str2idx maps sample, time-point, replicate to column index.
+			lst_str2idx[s] returns the list of time-points of sample s.
+			lst_str2idx[s][t] returns the list of replicates of time-points t of sample s.
+			lst_str2idx[s][t][r] returns the column index of replicate r of time-point t of sample s.
+		Thus, arr_exp[g][lst_str2idx[s][t][r]] returns the the expression value of gene g in sample s, timepoint t, replicate r.
 	'''
 	# Normalize expression
 	arr_exp = normailze(arr_exp, lst_str2idx, platform=platform)
 
 	# Profile DEG for t0 vs. tx for each sample
-	arr_DEG, lst_st2idx = profileDEG(arr_exp, lst_str2idx, lst_gene=lst_gene, valueType='absolute_binary', passOut=None, outdir=outdir)
+	arr_DEGpre, lst_st2idx = profileDEG(arr_exp, lst_str2idx, lst_gene=lst_gene, valueType='signed_zstats', passBy=False, outdir=outdir)
+	'''
+		A arr_DEGpre is a numpy array of two dimensions.
+		That is, arr_DEGpre[g,lst_st2idx[s][t-1]] returns whether gene g is DEG or not for timepoint t vs. t0 in sample s.
+		Also valueType determines the meaning of DEG value
+			'absolute_binary': 1(DEG, i.e. adj.p < 0.05) or 0(non-DEG)
+			'signed_binary': 1(UP-DEG), -1(DOWN-DEG), or 0(non-DEG)
+			'absolute_zstats': abs(zstats)    where zstats = cdf.inverse(p) of the normal distribution cosidering UP and DOWN.
+			'signed_zstats': zstats
+			'absolute_FC': abs(log(fold change))
+			'signed_FC': log(fold change)
+	'''
 
 	# Merge DEG profile for each sample
-	arr_DEG = mergeDEGprofile(arr_DEG, lst_st2idx)
+	arr_DEG=np.zeros((arr_DEGpre.shape[0], len(lst_st2idx)))
+	for s in range(len(lst_st2idx)):
+		lst_i = lst_st2idx[s]
+		arr_DEG[:,s] = np.max(abs(arr_DEGpre[:,lst_i]),axis=1)
 	'''
-		A arr_DEGprofile is a numpy array of two dimensions.
-		That is, the value of arr_DEGprofile[g,e] is 1(DEG) or 0(non-DEG) for gene g in sample s.
+		A arr_DEG is a numpy array of two dimensions.
+		That is, arr_DEG[g,s] returns whether gene g is DEG or not in sample s.
 	'''
-	# Compute adjusted p-value of DEG frequencies against the random frequency distribution.
-	lst_frequency = np.sum(arr_DEG, axis=1)
-	lst_pval = testDEGprofile(arr_DEG, method='sampling', nTrial=200000, seed=seed)
-	#lst_DEGidx = selectSignificant(lst_pval, method='pcut', multipleTestCorrection='bonferroni', alpha=0.05)
-	lst_DEGidx = selectSignificant(lst_pval, method='pcut', multipleTestCorrection='fdr_bh', alpha=DEGpcut)
 
-	for gene in set(lst_gene)-set([lst_gene[i] for i in lst_DEGidx]):
-		dic_gene2phase[gene]='outByDEGfreq'
-	#for i in range(len(lst_gene)):
-	#	print lst_gene[i], lst_pval[i]
-	lst_sortedDEGidx = sorted(lst_DEGidx, key=lambda x:lst_frequency[x], reverse=True)
-	lst_DEGgene = [lst_gene[i] for i in lst_sortedDEGidx]
-	arr_DEGexp = arr_exp[lst_sortedDEGidx,:]
+	# Compute p-value of DEG frequencies against the randomly sampled frequency distribution.
+	lst_pval = testDEGprofile(arr_DEG, method='sampling', nTrial=200000, seed=seed)
+
+	# perform multiple test correction to produce adjusted p-values
+	_a_, lst_adjPval, _b_, _c_ = statsmodels.sandbox.stats.multicomp.multipletests(lst_pval,method='fdr_bh')
+
+	# select indices of consensus DEG genes
+	lst_DEGidx = [i for i in range(len(lst_gene)) if lst_adjPval[i] < DEGpcut]
+
+	# sort DEG genes by frequency
+	lst_frequency = np.sum(arr_DEG, axis=1)
+	lst_DEGidx = sorted(lst_DEGidx, key=lambda x:lst_frequency[x], reverse=True)
+	lst_DEGgene = [lst_gene[i] for i in lst_DEGidx]
+	arr_DEGexp = arr_exp[lst_DEGidx,:]
+
+	# select 10% of DEG genes as pseudo reference genes
 	set_pseudoRefGene = set(lst_DEGgene[0:int(0.1*len(lst_DEGgene))])
 
+	# set the number of clusters k
 	if step2_k == 'auto':
 		maxK = min(500,len(arr_DEGexp))
 		lst_k = list(range(50,maxK,50))
 	else:
 		lst_k = [int(step2_k)]
-	distMatrix=scipy.spatial.distance.squareform(scipy.spatial.distance.pdist(arr_DEGexp, metric='cosine'))
-	#lst_lowerBoundDistance = getLowerBoundDistance(distMatrix, cosinePcut)
-	dic_k2gene_phase={}
-	dic_k2f1={}
-	for k in lst_k:
+
+	dic_k2f1_gene2phase_phase2rt={}
+	for kidx, k in enumerate(lst_k):
 		########################
 		#        STEP 2        #
 		########################
-		dic_cluster2idxs = skmeansWrapper(arr_DEGexp, k, seed=seed, outdir=outdir) 
-		lst_clusterPval, lst_idxPval = testCluster(dic_cluster2idxs, distMatrix, method='sampling', nTrial=1000)
-		'''
-		set_outlier = set()
-		for cluster, set_idx in dic_cluster2idxs.items():
-			center = sorted([(i,np.sum(distMatrix[i,sorted(set_idx)])) for i in set_idx],key=lambda x:x[1])[0][0]
-			for idx in set_idx:
-				if distMatrix[center,idx] > lst_lowerBoundDistance[len(set_idx)]:
-					set_outlier.add(idx)
-			dic_cluster2idxs[cluster] = set([idx for idx in set_idx if idx not in set_outlier])
-
-		for i in set_outlier:
-			gene = lst_DEGgene[i]
-			dic_gene2phase[gene]='outByCosDist'
-
-		set_remove = set()
-		lst_nGene = [len(set_idx) for set_idx in dic_cluster2idxs.values()]
-		lst_pval=[]
-		for cluster, set_idx in sorted(dic_cluster2idxs.items()):
-			sizePval = scipy.stats.binom.cdf(len(set_idx),len(arr_DEGexp),1.0/float(k))
-			lst_pval.append(sizePval)
-			#if tstats < 0 and sizePval < minSizePcut:
-			#	set_remove.add(cluster)
-
-		reject,lst_qval,alphacSidak,alphacBonf = statsmodels.sandbox.stats.multicomp.multipletests(lst_pval,method='fdr_bh',alpha=0.05)
-		#lst_qval = selectSignificant(lst_pval, method='pcut', multipleTestCorrection='fdr_bh', alpha=DEGpcut)
-		for i, (cluster, set_idx) in enumerate(sorted(dic_cluster2idxs.items())):
-			tstats=lst_tstats[i]
-			pval = lst_pval[i]
-			sizePval = lst_qval[i]
-			print cluster, len(set_idx), tstats, pval, sizePval, np.mean(lst_nGene), len(arr_DEGexp)*1.0/float(k)
-			if tstats > 0 and sizePval < minSizePcut:
-				set_remove.add(cluster)
-
-		for cluster in set_remove:
-			for idx in dic_cluster2idxs[cluster]:
-				gene=lst_DEGgene[idx]
-				dic_gene2phase[gene]='outBySmallCluster'
-			del dic_cluster2idxs[cluster]
-		'''
-		
+		if kidx == 0:
+			dic_cluster2idxs = skmeansWrapper(arr_DEGexp, k, lst_gene=lst_DEGgene, lst_sample=lst_sample, writeInputfile=True, seed=seed, outdir=outdir) 
+		elif kidx >= 1:
+			dic_cluster2idxs = skmeansWrapper(arr_DEGexp, k, lst_gene=lst_DEGgene, lst_sample=lst_sample, writeInputfile=False, seed=seed, outdir=outdir) 
+		for cluster in dic_cluster2idxs.keys():
+			if len(dic_cluster2idxs[cluster]) < minClusterSize:
+				del dic_cluster2idxs[cluster]
+	
 		########################
 		#        STEP 3        #
 		########################
 		dic_cluster2rt_tstats={}
 		for i, (cluster, gidxs) in enumerate(dic_cluster2idxs.items()):
-			#if i > 3: break
 			rt, tstats = getResponseTimeVector(arr_DEGexp[sorted(gidxs),:], lst_str2idx)
 			dic_cluster2rt_tstats[cluster]=[rt,tstats]
-			#print cluster, rt, tstats
 
 		########################
 		#        STEP 4        #
 		########################
+		dic_phase2rt={}
 		dic_gene2phase={}
 		dic_cluster2phase = orderingCluster(dic_cluster2rt_tstats)
 		for cluster, phase in dic_cluster2phase.items():
 			for i in dic_cluster2idxs[cluster]:
 				gene = lst_DEGgene[i]
 				dic_gene2phase[gene]=phase
+				dic_phase2rt[phase]=dic_cluster2rt_tstats[cluster][0]
 
-		dic_k2gene_phase[k]=dic_gene2phase
 		set_gene=set(dic_gene2phase.keys())
 		TP = len(set_pseudoRefGene & set_gene)
 		FP = len(set_gene - set_pseudoRefGene)
@@ -741,11 +673,9 @@ def run(lst_sample, lst_gene, arr_exp, DEGpcut, cosinePcut, minSizePcut, step2_k
 			precision = float(TP)/(TP+FP)
 			recall = float(TP)/(TP+FN)
 			f1 = 2*(precision*recall)/(precision+recall)
-		dic_k2f1[k]=f1
-		print k, TP, FP, FN, TN, f1
-	k, f1 = sorted(dic_k2f1.items(),key=lambda x:x[1], reverse=True)[0]
-	return dic_k2gene_phase[k]
-
+		dic_k2f1_gene2phase_phase2rt[k]=[f1, dic_gene2phase, dic_phase2rt]
+	k, (f1, dic_gene2phase, dic_phase2rt) = sorted(dic_k2f1_gene2phase_phase2rt.items(),key=lambda x:x[1][0], reverse=True)[0]
+	return dic_gene2phase, dic_phase2rt
 
 
 if __name__ == "__main__":
@@ -756,12 +686,12 @@ if __name__ == "__main__":
 	''')
 	
 	parser.add_argument('expfile', help='Gene expression file')
+	parser.add_argument('-DEGpcut', required=False, type=float, default=0.05, help='Cutoff value of adjusted p-value for testing consensus DEGs')
+	parser.add_argument('-minClusterSize', required=False, type=int, default=3, help='Cutoff value of proportion for the minimum cluster size')
 	parser.add_argument('-step2_k', required=False, default='auto', help='The number of clusters for Step 2')
-	parser.add_argument('-DEGpcut', required=False, type=float, default=0.05, help='')
-	parser.add_argument('-cosinePcut', required=False, type=float, default=0.05, help='DEGratio cutoff')
-	parser.add_argument('-minSizePcut', required=False, type=float, default=0.01, help='ttest|MI')
-	parser.add_argument('-seed', required=False, type=int, default=20170211, help='Seed value to fix random process')
-	parser.add_argument('-o', required=False, metavar='str', default='result', help='out directory')
+	parser.add_argument('-seed', required=False, type=int, default=None, help='Seed value to fix random process')
+	parser.add_argument('-platform', required=False, choices=['microarray','RNA-seq'], default='microarray', help='The platform of measurment of gene expression data')
+	parser.add_argument('-o', required=False, metavar='str', default='result', help='Output directory')
 	args=parser.parse_args()
 	
 	if not os.path.exists(args.o):
@@ -769,12 +699,14 @@ if __name__ == "__main__":
 
 	lst_sample, lst_gene, arr_exp = readData(args.expfile)
 
-	#dic_orderedCluster2genes = run(lst_sample=lst_sample, lst_gene=lst_gene, arr_exp=arr_exp, DEGpcut=args.DEGpcut, cosinePcut=args.cosinePcut, minSizePcut=args.minSizePcut, step2_k='auto', platform='microarray')
-	dic_gene2phase = run(lst_sample=lst_sample, lst_gene=lst_gene, arr_exp=arr_exp, DEGpcut=args.DEGpcut, cosinePcut=args.cosinePcut, minSizePcut=args.minSizePcut, step2_k=args.step2_k, platform='microarray', seed=args.seed, outdir=args.o)
-
-	OF=open(args.o+'/gene2phase.txt','w')
+	dic_gene2phase, dic_phase2rt = run(lst_sample=lst_sample, lst_gene=lst_gene, arr_exp=arr_exp, DEGpcut=args.DEGpcut, minClusterSize=args.minClusterSize, step2_k=args.step2_k, platform=args.platform, seed=args.seed, outdir=args.o)
+	OF=open(args.o+'/final.gene2phase.txt','w')
 	for gene, phase in dic_gene2phase.items():
 		OF.write('\t'.join(map(str,[gene, phase]))+'\n')
-	#for oc, lst_gene in dic_orderedCluster2genes.items():
-	#	for gene in lst_gene:
-	#		OF.write('\t'.join(map(str,[gene, oc]))+'\n')
+	OF.close()
+
+	OF=open(args.o+'/final.phase2responseTime.txt','w')
+	for phase, rt in dic_phase2rt.items():
+		str_rt = ','.join(map(str,rt))
+		OF.write('\t'.join(map(str,[phase, str_rt]))+'\n')
+	OF.close()

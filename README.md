@@ -42,8 +42,14 @@ see the example file
 
 
 
-## Run
+## Run HTRgene
 ```
-python HTRgene.py example/exp.cold.28sample.txt out.cold
-python HTRgene.py example/exp.heat.24sample.txt out.heat
+python HTRgene.py example/exp.cold.28sample.txt -o out.cold
+python HTRgene.py example/exp.heat.24sample.txt -o out.heat
+```
+
+## Plot heatmap
+```
+python Heatmap.py out.cold/step1.DEGresult out.cold/final.gene2phase.txt
+python Heatmap.py out.heat/step1.DEGresult out.heat/final.gene2phase.txt
 ```

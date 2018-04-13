@@ -17,15 +17,33 @@ deg_info <- read.table(args[3], header=FALSE)
 if (args[4] == 'absolute_binary'){
 	isSigned <- FALSE
 	isBinary <- TRUE
+	isZstats <- FALSE
+	isLogFC <- FALSE
 } else if (args[4] == 'signed_binary'){
 	isSigned <- TRUE
 	isBinary <- TRUE
-} else if (args[4] == 'absolute_tstats'){
+	isZstats <- FALSE
+	isLogFC <- FALSE
+} else if (args[4] == 'absolute_zstats'){
 	isSigned <- FALSE
 	isBinary <- FALSE
-} else if (args[4] == 'signed_tstats'){
+	isZstats <- TRUE
+	isLogFC <- FALSE
+} else if (args[4] == 'signed_zstats'){
 	isSigned <- TRUE
 	isBinary <- FALSE
+	isZstats <- TRUE
+	isLogFC <- FALSE
+} else if (args[4] == 'absolute_logFC'){
+	isSigned <- FALSE
+	isBinary <- FALSE
+	isZstats <- FALSE
+	isLogFC <- TRUE
+} else if (args[4] == 'signed_logFC'){
+	isSigned <- TRUE
+	isBinary <- FALSE
+	isZstats <- FALSE
+	isLogFC <- TRUE
 }
 
 for (i in 1:nrow(deg_info)){
@@ -41,13 +59,17 @@ for (i in 1:nrow(deg_info)){
 	#result <- table[genes, 5]
 	table <- table[order(row.names(table)),]
 	# columns of table 1:logFC, 2:AvgExpr 3:t 4:P.value 5:adj.P.val 6:B
-	result <- table[1:nrow(table), 5]
-	#print(rownames(table)[0:10])
 	if (isBinary == TRUE){
 		result <- as.integer(table[1:nrow(table),5] < 0.05)
-		if (isSigned == TRUE){
-			result <- result * sign(table[1:nrow(table),1])
-		}
+	}
+	else if (isZstats == TRUE){
+		result <- abs(qnorm(table[1:nrow(table),4]))
+	}
+	else if (isLogFC == TRUE){
+		result <- abs(table[1:nrow(table),1])
+	}
+	if (isSigned == TRUE){
+		result <- result * sign(table[1:nrow(table),1])
 	}
 	names(result) <- rownames(table)
 	if (i==1){
@@ -58,7 +80,8 @@ for (i in 1:nrow(deg_info)){
 	colnames(result.all)[ncol(result.all)] <- paste(group1,",",group2, sep="")
 }
 
-#filename="./DEG_result.T1.txt"
+result.all[is.na(result.all)] <- 0
+
 filename=args[5]
 write.table(t(c("gene", colnames(result.all))), file=filename, sep="\t", col.names=FALSE, row.names=FALSE, quote=FALSE)
 write.table(result.all, file=filename, append=TRUE, sep="\t", col.names=FALSE, row.names=TRUE, quote=FALSE)
