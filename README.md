@@ -33,7 +33,7 @@ The first line of the file includes labels of columns in the format of i_j_k.
 - j : time-point
 - k : replicate
 
-Thus, the label of a column that belongs to time-series sample 0, time-point 0, replicate 2 will be 0_0_2.
+For instance, the label of a column 0_0_2 represents time-series sample 0, time-point 0, replicate 2. 
 
 ### Gene IDs
 The first column of the file includes gene IDs.
