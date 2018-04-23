@@ -56,20 +56,27 @@ for (i in 1:nrow(deg_info)){
 	fit <- eBayes(fit)
 	options(digits=2)
 	table <- topTable(fit, coef=2, adjust="fdr", n=Inf)
-	#result <- table[genes, 5]
+	row.names(table) <- table$ID
 	table <- table[order(row.names(table)),]
+	val.p <- table[1:nrow(table),4]
+	val.p[is.na(val.p)] <- 1.0
+	val.adjp <- table[1:nrow(table),5]
+	val.adjp[is.na(val.adjp)] <- 1.0
+	val.logFC <- table[1:nrow(table),1]
+	val.sign <- sign(table[1:nrow(table),3])
 	# columns of table 1:logFC, 2:AvgExpr 3:t 4:P.value 5:adj.P.val 6:B
 	if (isBinary == TRUE){
-		result <- as.integer(table[1:nrow(table),5] < 0.05)
+		result <- as.integer(val.adjp < 0.05)
 	}
 	else if (isZstats == TRUE){
-		result <- abs(qnorm(table[1:nrow(table),4]))
+		result <- pmin(abs(qnorm(val.p)),300)
 	}
 	else if (isLogFC == TRUE){
-		result <- abs(table[1:nrow(table),1])
+		result <- abs(val.logFC)
 	}
 	if (isSigned == TRUE){
-		result <- result * sign(table[1:nrow(table),1])
+		#result <- result * sign(table[1:nrow(table),1])
+		result <- result * val.sign
 	}
 	names(result) <- rownames(table)
 	if (i==1){
