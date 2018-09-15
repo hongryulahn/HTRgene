@@ -71,32 +71,83 @@ def ranking(x, axis=0, method='average', reverse=False):
 		print('I don\' know how to rank %d dimensional data'%(nDimension))
 		sys.exit(1)
 
-def readData(expfile):
+def isNumber(x):
+	try:
+		float(x)
+		return True
+	except:
+		return False
+
+def readData(expfiles):
 	"""Read data from expfile.
 
 	Return a list of samples, a list of genes, and gene expression array (numpy.array).
 
 	Args:
-		expfile: gene expression matrix file
+		expfiles: gene expression matrix files
+			An expfile includes multiple time-series samples
+			Each sample ID in header line of the file must follow the format SID_TID_RID
+				SID is a string to indicates the time-series sample
+				TID is a number to indicates the time point (each sample must have at least one 0 time point)
+				RID is a number to indicates the biological replicate
+			The SID, TID, RID are sorted and assigned a new interger ID starting from 0.
 	Returns:
 		a list of samples, a list of genes, and gene expression array
 	Raises:
 		pass
 	"""
 
-	IF=open(expfile,'r')
-	line=IF.readline()
-	lst_sample=line.strip().split('\t')[1:]
-			
-	lst_gene=[]
-	lst_exps=[]
-	for line in IF:
-		s=line.strip().split('\t')
-		gene, lst_exp = s[0], map(float,s[1:])
-		lst_gene.append(gene)
-		lst_exps.append(lst_exp)
+	dic_gene2exps={}
+	lst_newSample = []
+	countSID=0
+	for expfile in expfiles:
+		IF=open(expfile,'r')
+		line=IF.readline()
+		lst_sample=line.strip().split('\t')[1:]
+
+		lst_tag=[]
+		dic_SID2newSID={}
+		for idx, sample in enumerate(lst_sample):
+			SID, TID, RID = sample.split('_')
+			assert(isNumber(TID)),"TID must be a number"
+			assert(isNumber(RID)),"RID must be a number"
+			if SID not in dic_SID2newSID:
+				dic_SID2newSID[SID]=countSID
+				countSID+=1
+			newSID = dic_SID2newSID[SID]
+			lst_tag.append([sample, newSID, float(TID), float(RID), idx])
+		lst_tag.sort(key=lambda x:(x[1],x[2],x[3]))
+		lst_idxMap = []
+		prvSID = None
+		for sample, SID, TID, RID, idx in lst_tag:
+			if SID != prvSID:
+				assert(TID == 0.0),"A sample must have at least one 0 time point"
+				prvTID = None
+				newTID = -1
+			if TID != prvTID:
+				newTID += 1
+				newRID = 0
+			lst_newSample.append('%d_%d_%d'%(SID,newTID,newRID))
+			lst_idxMap.append(idx)
+			prvSID = SID
+			prvTID = TID
+			newRID += 1
+		lst_exps=[]
+		for line in IF:
+			s=line.strip().split('\t')
+			gene, lst_exp = s[0], [float(s[idx+1]) for idx in lst_idxMap]
+			if gene not in dic_gene2exps:
+				dic_gene2exps[gene] = []
+			dic_gene2exps[gene]+=lst_exp
+
+	lst_gene = []
+	lst_exps = []
+	for gene, lst_exp in sorted(dic_gene2exps.items()):
+		if len(lst_exp) == len(lst_newSample):
+			lst_gene.append(gene)
+			lst_exps.append(lst_exp)
 	arr_exp = np.array(lst_exps)
-	return lst_sample, lst_gene, arr_exp
+	return lst_newSample, lst_gene, arr_exp
 
 def label2struct(lst_sample):
 	"""Bulid a sample-timepoint-replicate structure from sample labels.
@@ -685,10 +736,10 @@ if __name__ == "__main__":
 	example: %(prog)s expfile -o out.txt
 	''')
 	
-	parser.add_argument('expfile', help='Gene expression file')
+	parser.add_argument('expfiles', nargs='+', help='Gene expression file')
 	parser.add_argument('-DEGpcut', required=False, type=float, default=0.05, help='Cutoff value of adjusted p-value for testing consensus DEGs')
 	parser.add_argument('-minClusterSize', required=False, type=int, default=3, help='Cutoff value of proportion for the minimum cluster size')
-	parser.add_argument('-step2_k', required=False, default='auto', help='The number of clusters for Step 2')
+	parser.add_argument('-step2_k', required=False, default=200, help='The number of clusters for Step 2')
 	parser.add_argument('-seed', required=False, type=int, default=None, help='Seed value to fix random process')
 	parser.add_argument('-platform', required=False, choices=['microarray','RNA-seq'], default='microarray', help='The platform of measurment of gene expression data')
 	parser.add_argument('-o', required=False, metavar='str', default='result', help='Output directory')
@@ -697,7 +748,7 @@ if __name__ == "__main__":
 	if not os.path.exists(args.o):
 		os.makedirs(args.o)
 
-	lst_sample, lst_gene, arr_exp = readData(args.expfile)
+	lst_sample, lst_gene, arr_exp = readData(args.expfiles)
 
 	dic_gene2phase, dic_phase2rt = run(lst_sample=lst_sample, lst_gene=lst_gene, arr_exp=arr_exp, DEGpcut=args.DEGpcut, minClusterSize=args.minClusterSize, step2_k=args.step2_k, platform=args.platform, seed=args.seed, outdir=args.o)
 	OF=open(args.o+'/final.gene2phase.txt','w')
